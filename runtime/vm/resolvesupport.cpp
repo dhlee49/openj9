@@ -80,11 +80,16 @@ finalFieldSetAllowed(J9VMThread *currentThread, bool isStatic, J9Method *method,
 		 */
 		fieldClass = J9_CURRENT_CLASS(fieldClass);
 		callerClass = J9_CURRENT_CLASS(callerClass);
-		if (VM_VMHelpers::romClassChecksFinalStores(callerClass->romClass)) {
+		J9ROMClass *romClass = fieldClass->romClass;
+		if (romClass->majorVersion >= 53) {
 			J9ROMMethod *romMethod = J9_ROM_METHOD_FROM_RAM_METHOD(method);
-			if ((fieldClass != callerClass) || !VM_VMHelpers::romMethodIsInitializer(romMethod, isStatic)) {
+			J9UTF8 *name = J9ROMMETHOD_NAME(romMethod);
+			if (('<' != J9UTF8_DATA(name)[0])
+			|| (J9UTF8_LENGTH(name) != strlen(isStatic ? "<clinit>" : "<init>"))
+			|| ((fieldClass != callerClass) && (!J9ROMCLASS_IS_UNSAFE(callerClass->romClass)))
+			) {
 				if (canRunJavaCode) {
-					setIllegalAccessErrorFinalFieldSet(currentThread, isStatic, fieldClass->romClass, field, romMethod);
+					setIllegalAccessErrorFinalFieldSet(currentThread, isStatic, romClass, field, romMethod);
 				}
 				legal = false;
 			}
@@ -787,13 +792,12 @@ illegalAccess:
 						localClassAndFlagsData |= J9StaticFieldRefBoolean;
 					}
 				}
-				/* Set the volatile, final and setter bits in the flags as needed */
+				/* Check if volatile and set the localClassAndFlags to have StaticFieldRefVolatile. */
 				if ((modifiers & J9AccVolatile) == J9AccVolatile) {
 					localClassAndFlagsData |= J9StaticFieldRefVolatile;
 				}
-				if ((modifiers & J9AccFinal) == J9AccFinal) {
-					localClassAndFlagsData |= J9StaticFieldRefFinal;
-				}
+
+
 				if (0 != (resolveFlags & J9_RESOLVE_FLAG_FIELD_SETTER)) {
 					localClassAndFlagsData |= J9StaticFieldRefPutResolved;
 				}
